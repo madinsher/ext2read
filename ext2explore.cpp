@@ -73,7 +73,6 @@ Ext2Explore::Ext2Explore(QWidget *parent) :
     connect(ui->list, SIGNAL(clicked(QModelIndex)), this, SLOT(on_action_item_clicked(const QModelIndex &)));
     connect(this, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(ext2_context_menu(const QPoint &)));
 
-    codec = QTextCodec::codecForName("utf-8");
 }
 
 Ext2Explore::~Ext2Explore()
@@ -140,7 +139,7 @@ void Ext2Explore::init_root_fs()
         }
 
         ptr = temp->get_root();
-        item->setData(qVariantFromValue(ptr), Qt::UserRole);
+        item->setData(QVariant::fromValue(ptr), Qt::UserRole);
         item->setEditable(false);
         root->appendRow(item);
         temp->onview = true;
@@ -276,8 +275,8 @@ void Ext2Explore::on_action_item_dbclicked(const QModelIndex &index)
         LOG("Found File %s inode %d \n", files->file_name.c_str(), files->inode_num);
 
         children = new QStandardItem(QIcon(handle_mime(files->file_name, files->inode.i_mode)),
-                                     codec->toUnicode(files->file_name.c_str()));
-        children->setData(qVariantFromValue((void *)files), Qt::UserRole);
+                                     QString::fromUtf8(files->file_name.c_str()));
+        children->setData(QVariant::fromValue((void *)files), Qt::UserRole);
         children->setEditable(false);
         parentItem->appendRow(children);
         parentFile->onview = true;

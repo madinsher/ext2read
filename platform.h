@@ -29,6 +29,7 @@
 #include <stdint.h>
 
  typedef HANDLE FileHandle;
+ #define INVALID_FILE_HANDLE INVALID_HANDLE_VALUE
 #ifdef _MSC_VER
  typedef unsigned char uint8_t;
  typedef unsigned short uint16_t;
@@ -38,6 +39,7 @@
  #define FILE_DELIM		"\\"
 #else
  typedef int FileHandle;
+ #define INVALID_FILE_HANDLE (-1)
  #define FILE_DELIM	"/"
 #endif
 

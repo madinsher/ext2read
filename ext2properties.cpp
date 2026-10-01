@@ -20,6 +20,13 @@
 #include <QDateTime>
 #include "ext2properties.h"
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+ #define SET_EPOCH(dt, t)   (dt).setSecsSinceEpoch(t)
+#else
+ #define SET_EPOCH(dt, t)   (dt).setTime_t(t)
+#endif
+
+
 Ext2Properties::Ext2Properties(QWidget *parent)
             : QDialog(parent)
 {
@@ -69,13 +76,13 @@ void Ext2Properties::set_properties(Ext2File *file)
     properties->szdiskval->setText(szstrblock);
 
     QDateTime time;
-    time.setTime_t(file->inode.i_ctime);
+    SET_EPOCH(time, file->inode.i_ctime);
     properties->createdval->setText(time.toString());
 
-    time.setTime_t(file->inode.i_mtime);
+    SET_EPOCH(time, file->inode.i_mtime);
     properties->modifiedval->setText(time.toString());
 
-    time.setTime_t(file->inode.i_atime);
+    SET_EPOCH(time, file->inode.i_atime);
     properties->accessedval->setText(time.toString());
 }
 

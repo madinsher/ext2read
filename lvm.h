@@ -33,6 +33,8 @@
 #define LVM_MAGIC_LEN	8
 #define UUID_LEN	32
 
+#pragma pack(push, 1)
+
 /* Structure to hold Physical Volumes (PV) label*/
 typedef struct pv_label_header {
         char        pv_name[LVM_SIGLEN];   // Physical volume signature
@@ -43,7 +45,7 @@ typedef struct pv_label_header {
         char        pv_uuid[UUID_LEN];
         uint64_t    pv_unknown1[5];             // documentation lacks for lvm
         uint64_t    pv_labeloffset;             // location of the label
-} __attribute__ ((__packed__)) PV_LABEL_HEADER;
+} PACKED PV_LABEL_HEADER;
 
 typedef struct pv_label {
     uint32_t        pv_magic;
@@ -53,7 +55,9 @@ typedef struct pv_label {
     uint64_t        unknown2;
     uint64_t        pv_offset_high;
     uint64_t        pv_length;
-} __attribute__ ((__packed__)) PV_LABEL;
+} PACKED PV_LABEL;
+
+#pragma pack(pop)
 
 class VolumeGroup;
 

@@ -153,6 +153,7 @@ class Ext2Partition {
     int inode_size;
     int blocksize;
     uint32_t totalGroups;
+    int desc_size;              // size of one group descriptor (32, or s_desc_size with the 64bit feature)
     EXT2_GROUP_DESC *desc;
     char *inode_buffer;         // buffer to cache last used block of inodes
     lloff_t last_block;          // block number of the last inode block read
@@ -165,6 +166,7 @@ class Ext2Partition {
     lloff_t extent_to_logical(EXT2_INODE *ino, lloff_t lbn);
     lloff_t extent_binarysearch(EXT4_EXTENT_HEADER *header, lloff_t lbn, bool isallocated);
     int mount();
+    lloff_t get_inode_table(uint32_t group);
 
 public:
     bool onview;        // flag to determine if it is already added to view.

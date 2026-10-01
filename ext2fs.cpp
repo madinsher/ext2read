@@ -22,14 +22,23 @@
  **/
 
 #include <stdio.h>
+#include <stddef.h>
 #include "ext2read.h"
 #include "lvm.h"
+
+/* Compile time checks that the on-disk superblock layout is what the code expects. */
+typedef char ext2_sb_size_check[(sizeof(EXT2_SUPER_BLOCK) == 1024) ? 1 : -1];
+typedef char ext2_sb_desc_size_check[(offsetof(EXT2_SUPER_BLOCK, s_desc_size) == 0xFE) ? 1 : -1];
+typedef char ext2_sb_blocks_hi_check[(offsetof(EXT2_SUPER_BLOCK, s_blocks_count_hi) == 0x150) ? 1 : -1];
 
 Ext2Partition::Ext2Partition(lloff_t size, lloff_t offset, int ssize, FileHandle phandle, LogicalVolume *vol)
 {
     int ret;
 
     desc = NULL;
+    desc_size = sizeof(EXT2_GROUP_DESC);
+    totalGroups = 0;
+    last_block = (lloff_t)-1;
     total_sectors = size;
     relative_sect = offset;
     handle = phandle;
@@ -123,7 +132,8 @@ int Ext2Partition::ext2_readblock(lloff_t blocknum, void *buffer)
 int Ext2Partition::mount()
 {
     EXT2_SUPER_BLOCK sblock;
-    int gSizes, gSizeb;		/* Size of total group desc in sectors */
+    lloff_t gSizeb, gSizes;		/* Size of total group desc in bytes and sectors */
+    lloff_t blocks_count;
     char *tmpbuf;
 
     read_disk(handle, &sblock, relative_sect + 2, 2, sect_size);	/* read superBlock of root */
@@ -143,36 +153,60 @@ int Ext2Partition::mount()
 
     volume_name = sblock.s_volume_name;
 
-    LOG("Block size %d, inp %d, inodesize %d\n", blocksize, inodes_per_group, inode_size);
-    totalGroups = (sblock.s_blocks_count)/EXT2_BLOCKS_PER_GROUP(&sblock);
-    gSizeb = (sizeof(EXT2_GROUP_DESC) * totalGroups);
-    gSizes = (gSizeb / sect_size)+1;
+    /* With the 64bit feature (the default for mkfs.ext4 since 2016) group descriptors are
+     * s_desc_size (normally 64) bytes long instead of 32, and block counts have a high half. */
+    desc_size = sizeof(EXT2_GROUP_DESC);
+    blocks_count = sblock.s_blocks_count;
+    if(sblock.s_feature_incompat & EXT4_FEATURE_INCOMPAT_64BIT)
+    {
+        desc_size = (sblock.s_desc_size >= sizeof(EXT2_GROUP_DESC)) ? sblock.s_desc_size : 64;
+        blocks_count |= ((lloff_t) sblock.s_blocks_count_hi) << 32;
+    }
 
-    desc = (EXT2_GROUP_DESC *) calloc(totalGroups, sizeof(EXT2_GROUP_DESC));
+    LOG("Block size %d, inp %d, inodesize %d, descsize %d\n", blocksize, inodes_per_group, inode_size, desc_size);
+    totalGroups = (uint32_t)((blocks_count - sblock.s_first_data_block + EXT2_BLOCKS_PER_GROUP(&sblock) - 1) /
+                             EXT2_BLOCKS_PER_GROUP(&sblock));
+    gSizeb = (lloff_t)desc_size * totalGroups;
+    gSizes = (gSizeb + sect_size - 1) / sect_size;
+
+    desc = (EXT2_GROUP_DESC *) calloc((size_t) totalGroups, desc_size);
     if(desc == NULL)
     {
         LOG("Not enough Memory: mount: desc: Exiting\n");
         exit(1);
     }
 
-    if((tmpbuf = (char *) malloc(gSizes * sect_size)) == NULL)
+    if((tmpbuf = (char *) malloc((size_t)(gSizes * sect_size))) == NULL)
     {
         LOG("Not enough Memory: mount: tmpbuf: Exiting\n");
         exit(1);
     }
 
-    /* Read all Group descriptors and store in buffer */
-    /* I really dont know the official start location of Group Descriptor array */
-    if((blocksize/sect_size) <= 2)
-        read_disk(handle, tmpbuf, relative_sect + ((blocksize/sect_size) + 2), gSizes, sect_size);
-    else
-        read_disk(handle, tmpbuf, relative_sect + (blocksize/sect_size), gSizes, sect_size);
+    /* The group descriptors start in the block right after the one holding the superblock */
+    read_disk(handle, tmpbuf,
+              relative_sect + (lloff_t)(sblock.s_first_data_block + 1) * (blocksize/sect_size),
+              (int) gSizes, sect_size);
 
-    memcpy(desc, tmpbuf, gSizeb);
+    memcpy(desc, tmpbuf, (size_t) gSizeb);
 
     free(tmpbuf);
 
     return 0;
+}
+
+/* Returns the block number of the inode table of the given group. */
+lloff_t Ext2Partition::get_inode_table(uint32_t group)
+{
+    char *p = (char *) desc + (size_t) group * desc_size;
+    lloff_t block = ((EXT2_GROUP_DESC *) p)->bg_inode_table;
+
+    if(desc_size >= 64)
+    {
+        uint32_t hi;
+        memcpy(&hi, p + EXT4_BG_INODE_TABLE_HI_OFFSET, sizeof(hi));
+        block |= ((lloff_t) hi) << 32;
+    }
+    return block;
 }
 
 EXT2DIRENT *Ext2Partition::open_dir(Ext2File *parent)
@@ -197,6 +231,7 @@ Ext2File *Ext2Partition::read_dir(EXT2DIRENT *dirent)
     string filename;
     Ext2File *newEntry;
     char *pos;
+    char *bufend;
     int ret;
 
     if(!dirent)
@@ -213,14 +248,21 @@ Ext2File *Ext2Partition::read_dir(EXT2DIRENT *dirent)
         dirent->next_block++;
     }
 
+    bufend = (char *) dirent->dirbuf + blocksize;
+
     again:
     if(!dirent->next)
         dirent->next = dirent->dirbuf;
     else
     {
         pos = (char *) dirent->next;
-        dirent->next = (EXT2_DIR_ENTRY *)(pos + dirent->next->rec_len);
-        if(IS_BUFFER_END(dirent->next, dirent->dirbuf, blocksize))
+        /* A corrupt rec_len must neither loop forever nor run backwards: treat it as end of block. */
+        if((dirent->next->rec_len < 8) || (dirent->next->rec_len & 3))
+            pos = bufend;
+        else
+            pos += dirent->next->rec_len;
+        dirent->next = (EXT2_DIR_ENTRY *) pos;
+        if(IS_BUFFER_END(dirent->next, dirent->dirbuf, blocksize) || ((pos + 8) > bufend))
         {
             dirent->next = NULL;
             if(dirent->read_bytes < dirent->parent->file_size)
@@ -238,6 +280,12 @@ Ext2File *Ext2Partition::read_dir(EXT2DIRENT *dirent)
     }
 
     dirent->read_bytes += dirent->next->rec_len;
+
+    /* inode 0 marks an unused entry. With metadata_csum every leaf block also ends with such an
+     * entry (the checksum tail) and htree interior blocks consist of one: skip it, do not stop. */
+    if(dirent->next->inode == 0)
+        goto again;
+
     filename.assign(dirent->next->name, dirent->next->name_len);
     if((filename.compare(".") == 0) ||
        (filename.compare("..") == 0))
@@ -248,7 +296,7 @@ Ext2File *Ext2Partition::read_dir(EXT2DIRENT *dirent)
     if(!newEntry)
     {
         LOG("Error reading Inode %d parent inode %d.\n", dirent->next->inode, dirent->parent->inode_num);
-        return NULL;
+        goto again;
     }
 
     newEntry->file_type = dirent->next->filetype;
@@ -265,7 +313,8 @@ void Ext2Partition::close_dir(EXT2DIRENT *dirent)
 
 Ext2File *Ext2Partition::read_inode(uint32_t inum)
 {
-    uint32_t group, index, blknum;
+    uint32_t group, index;
+    lloff_t blknum;
     int inode_index, ret = 0;
     Ext2File *file = NULL;
     EXT2_INODE *src;
@@ -282,7 +331,7 @@ Ext2File *Ext2Partition::read_inode(uint32_t inum)
 
     group = (inum - 1) / inodes_per_group;
 
-    if(group > totalGroups)
+    if(group >= totalGroups)
     {
         LOG("Error Reading Inode %X. Invalid Inode Number\n", inum);
         return NULL;
@@ -290,7 +339,7 @@ Ext2File *Ext2Partition::read_inode(uint32_t inum)
 
     index = ((inum - 1) % inodes_per_group) * inode_size;
     inode_index = (index % blocksize);
-    blknum = desc[group].bg_inode_table + (index / blocksize);
+    blknum = get_inode_table(group) + (index / blocksize);
 
 
     if(blknum != last_block) {

@@ -24,6 +24,13 @@
 
 #include "platform.h"
 
+#if defined(_MSC_VER)
+ #include <stdlib.h>
+ #define GPT_BSWAP64(x) _byteswap_uint64(x)
+#else
+ #define GPT_BSWAP64(x) __builtin_bswap64(x)
+#endif
+
 struct GPTGuid {
     uint32_t Data1;
     uint16_t Data2;
@@ -78,7 +85,7 @@ static INLINE int gpt_guid_to_string(char* buf, const struct GPTGuid* guid) {
 }
 
 #define GPT_GUID(name, data1, data2, data3, data4a, data4b) \
-    const struct GPTGuid gpt_guid_##name = { data1, data2, data3, __builtin_bswap64((uint64_t)data4a << 48 | data4b) }
+    const struct GPTGuid gpt_guid_##name = { data1, data2, data3, GPT_BSWAP64((uint64_t)data4a << 48 | data4b) }
 
 GPT_GUID(none,          0x00000000, 0x0000, 0x0000, 0x0000, 0x000000000000LL);
 GPT_GUID(ms_reserved,   0xE3C9E316, 0x0B5C, 0x4DB8, 0x817D, 0xF92DF00215AELL);

@@ -25,8 +25,6 @@
   * partition information. For now we only support MBR style partitions.
   **/
 
-#include <dirent.h>
-
 #include "ext2read.h"
 #include "platform.h"
 #include "partition.h"
@@ -118,7 +116,7 @@ int Ext2Read::scan_ebr(FileHandle handle, lloff_t base, int sectsize, int disk)
             return -1;
         }
         part = pt_offset(sector, 0);
-        LOG("index %d ID %X size %Ld \n", logical, part->sys_ind, get_nr_sects(part));
+        LOG("index %d ID %X size %llu \n", logical, part->sys_ind, (unsigned long long)get_nr_sects(part));
 
         /*if((part->sys_ind == 0x05) || (part->sys_ind == 0x0f))
         {
@@ -243,7 +241,7 @@ int Ext2Read::scan_partitions(char *path, int diskno)
     int ret, i;
 
     handle = open_disk(path, &sector_size);
-    if(handle < 0)
+    if(handle == INVALID_FILE_HANDLE)
         return -1;
 
     ret = read_disk(handle,sector, 0, 1, sector_size);
@@ -269,7 +267,7 @@ int Ext2Read::scan_partitions(char *path, int diskno)
         part = pt_offset(sector, i);
         if((part->sys_ind != 0x00) || (get_nr_sects(part) != 0x00))
         {
-            LOG("index %d ID %X size %Ld \n", i, part->sys_ind, get_nr_sects(part));
+            LOG("index %d ID %X size %llu \n", i, part->sys_ind, (unsigned long long)get_nr_sects(part));
 
             if(part->sys_ind == EXT2)
             {

@@ -112,7 +112,6 @@ Ext2CopyProcess::Ext2CopyProcess(Ext2File *parent, QString &dest)
     buffer = new char [blksize];
     filetosave = NULL;
     cancelOperation = false;
-    codec = QTextCodec::codecForName("utf-8");
 }
 
 Ext2CopyProcess::~Ext2CopyProcess()
@@ -160,7 +159,7 @@ bool Ext2CopyProcess::copy_file(QString &destfile, Ext2File *srcfile)
     //const char *c_str2 = ba.data();
 
     //LOG("Copying file %s as %s\n", srcfile->file_name.c_str(), c_str2);
-    qsrc = codec->toUnicode(srcfile->file_name.c_str());
+    qsrc = QString::fromUtf8(srcfile->file_name.c_str());
     blocks = srcfile->file_size / blksize;
     for(blkindex = 0; blkindex < blocks; blkindex++)
     {
@@ -209,7 +208,7 @@ bool Ext2CopyProcess::copy_folder(QString &path, Ext2File *parent)
     if(!EXT2_S_ISDIR(parent->inode.i_mode))
         return false;
 
-    dir.mkdir(codec->toUnicode(parent->file_name.c_str()));
+    dir.mkdir(QString::fromUtf8(parent->file_name.c_str()));
     /*ba = path.toAscii();
     const char *c_str2 = ba.data();
     LOG("Creating Folder %s as %s\n", parent->file_name.c_str(), c_str2);
@@ -219,7 +218,7 @@ bool Ext2CopyProcess::copy_folder(QString &path, Ext2File *parent)
     {
         filetosave = rootname;
         filetosave.append(QString("/"));
-        filetosave.append(codec->toUnicode(parent->file_name.c_str()));
+        filetosave.append(QString::fromUtf8(parent->file_name.c_str()));
         if(EXT2_S_ISDIR(child->inode.i_mode))
         {
 
@@ -239,7 +238,7 @@ bool Ext2CopyProcess::copy_folder(QString &path, Ext2File *parent)
         }
 
         filetosave.append(QString("/"));
-        filetosave.append(codec->toUnicode(child->file_name.c_str()));
+        filetosave.append(QString::fromUtf8(child->file_name.c_str()));
         ret = copy_file(filetosave, child);
         if((ret == false) && (cancelOperation == true))
         {

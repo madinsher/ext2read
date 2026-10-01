@@ -30,7 +30,6 @@
 #include <QListView>
 #include <QTreeView>
 #include <QSplitter>
-#include <QTextCodec>
 
 #include "ext2read.h"
 #include "ext2properties.h"
@@ -60,7 +59,6 @@ private:
     QStandardItemModel *filemodel;
     QStandardItem *root;
     Ext2Read *app;
-    QTextCodec *codec;
 
     void init_root_fs();
     QString handle_mime(string file, uint16_t mode);

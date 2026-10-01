@@ -21,6 +21,7 @@
 #include <windows.h>
 #include <winioctl.h>
 #include <fcntl.h>
+#include <string.h>
 
 #include "platform.h"
 
@@ -35,7 +36,7 @@ FileHandle open_disk(const char *path, int *sect_size)
     DWORD junk;
 
     handle = CreateFileA(path, GENERIC_READ,
-                         FILE_SHARE_READ,
+                         FILE_SHARE_READ | FILE_SHARE_WRITE,   /* disks are open for write elsewhere; plain FILE_SHARE_READ fails with ERROR_SHARING_VIOLATION */
                          NULL,
                          OPEN_EXISTING,
                          0, 0 );
@@ -72,7 +73,7 @@ int get_ndisks()
         //TRACE("NDISKS %s", path);
         hDevice = CreateFileA(path, // drive to open
                               GENERIC_READ,
-                              FILE_SHARE_READ,  // share mode
+                              FILE_SHARE_READ | FILE_SHARE_WRITE,  // share mode
                               NULL,    // default security attributes
                               OPEN_EXISTING,  // disposition
                               0,       // file attributes

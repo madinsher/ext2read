@@ -23,7 +23,7 @@
 
 #include <stdlib.h>
 #include <sstream>
-#include <QRegExp>
+#include <QRegularExpression>
 
 #include "lvm.h"
 
@@ -130,13 +130,13 @@ int LVM::parse_metadata()
 
     num = pv_metadata.indexOf("{");
     volname = pv_metadata.left(num - 1);
-    num = pv_metadata.indexOf(QRegExp("[a-zA-Z0-9]*-{1,}[a-zA-Z0-9]*"), 0);
+    num = pv_metadata.indexOf(QRegularExpression("[a-zA-Z0-9]*-{1,}[a-zA-Z0-9]*"), 0);
     if(num > 0)
     {
         suuid = pv_metadata.mid(num, 38);
         suuid.replace("-", "");
     }
-    num = pv_metadata.indexOf(QRegExp("[0-9]"), num + 38);
+    num = pv_metadata.indexOf(QRegularExpression("[0-9]"), num + 38);
     if(num > 0)
     {
         seq = pv_metadata.mid(num, 1).toInt(&ok);
@@ -146,7 +146,7 @@ int LVM::parse_metadata()
             return -1;
         }
     }
-    num = pv_metadata.indexOf(QRegExp("[0-9]+"), num + 1);
+    num = pv_metadata.indexOf(QRegularExpression("[0-9]+"), num + 1);
     if(num > 0)
     {
         size = pv_metadata.mid(num, 5).toInt(&ok);
@@ -172,9 +172,9 @@ int LVM::parse_metadata()
     if(num < 0)
         return -1;
 
-    while((num = pv_metadata.indexOf(QRegExp("pv[0-9\\s\\t]+\\{"), num)) > 0)
+    while((num = pv_metadata.indexOf(QRegularExpression("pv[0-9\\s\\t]+\\{"), num)) > 0)
     {
-        num = pv_metadata.indexOf(QRegExp("[a-zA-Z0-9]*-{1,}[a-zA-Z0-9]*"), num);
+        num = pv_metadata.indexOf(QRegularExpression("[a-zA-Z0-9]*-{1,}[a-zA-Z0-9]*"), num);
         if(num < 0)
             break;
 
@@ -182,9 +182,9 @@ int LVM::parse_metadata()
         suuid.replace("-", "");
         num += 38;
         numbase = num;
-        num = pv_metadata.indexOf(QRegExp("dev_size"), num);
-        num = pv_metadata.indexOf(QRegExp("[0-9]+"), num);
-        num2 = pv_metadata.indexOf(QRegExp("\\n"), num);
+        num = pv_metadata.indexOf(QRegularExpression("dev_size"), num);
+        num = pv_metadata.indexOf(QRegularExpression("[0-9]+"), num);
+        num2 = pv_metadata.indexOf(QRegularExpression("\\n"), num);
         dev_size = pv_metadata.mid(num, num2-num).toULongLong(&ok);
         if(!ok)
         {
@@ -192,9 +192,9 @@ int LVM::parse_metadata()
             return -1;
         }
 
-        num = pv_metadata.indexOf(QRegExp("pe_start"), numbase);
-        num = pv_metadata.indexOf(QRegExp("[0-9]+"), num);
-        num2 = pv_metadata.indexOf(QRegExp("\\n"), num);
+        num = pv_metadata.indexOf(QRegularExpression("pe_start"), numbase);
+        num = pv_metadata.indexOf(QRegularExpression("[0-9]+"), num);
+        num2 = pv_metadata.indexOf(QRegularExpression("\\n"), num);
         pe_start = pv_metadata.mid(num, num2-num).toUInt(&ok);
         if(!ok)
         {
@@ -202,9 +202,9 @@ int LVM::parse_metadata()
             return -1;
         }
 
-        num = pv_metadata.indexOf(QRegExp("pe_count"), numbase);
-        num = pv_metadata.indexOf(QRegExp("[0-9]+"), num);
-        num2 = pv_metadata.indexOf(QRegExp("\\n"), num);
+        num = pv_metadata.indexOf(QRegularExpression("pe_count"), numbase);
+        num = pv_metadata.indexOf(QRegularExpression("[0-9]+"), num);
+        num2 = pv_metadata.indexOf(QRegularExpression("\\n"), num);
         pe_count = pv_metadata.mid(num, num2-num).toUInt(&ok);
         if(!ok)
         {
@@ -212,7 +212,7 @@ int LVM::parse_metadata()
             return -1;
         }
 
-        LOG("Physical Volume found. start %d, count %d, size %Ld\n", pe_start, pe_count, dev_size);
+        LOG("Physical Volume found. start %u, count %u, size %llu\n", pe_start, pe_count, (unsigned long long)dev_size);
         PhysicalVolume *pvol;
         pvol = grp->find_physical_volume(suuid);
         num2 = suuid.compare(uuid);
@@ -224,19 +224,19 @@ int LVM::parse_metadata()
 
     // Parse Logical Volume
     int nsegs;
-    num = pv_metadata.indexOf(QRegExp("logical_volumes"), 0);
+    num = pv_metadata.indexOf(QRegularExpression("logical_volumes"), 0);
     if(num < 0)
         return -1;
-    num = pv_metadata.indexOf(QRegExp("\\n"), num);
+    num = pv_metadata.indexOf(QRegularExpression("\\n"), num);
     num += 2;
 
-    while((num = pv_metadata.indexOf(QRegExp("[a-zA-Z_0-9\\s\\t]+\\{"), num)) > 0)
+    while((num = pv_metadata.indexOf(QRegularExpression("[a-zA-Z_0-9\\s\\t]+\\{"), num)) > 0)
     {
         QString lvolname = volname;
-        num2 = pv_metadata.indexOf(QRegExp("[\\s\\t]+\\{"), num);
+        num2 = pv_metadata.indexOf(QRegularExpression("[\\s\\t]+\\{"), num);
         lvolname.append("_");
         lvolname.append(pv_metadata.mid(num+1, num2-num));
-        num = pv_metadata.indexOf(QRegExp("[a-zA-Z0-9]*-{1,}[a-zA-Z0-9]*"), num);
+        num = pv_metadata.indexOf(QRegularExpression("[a-zA-Z0-9]*-{1,}[a-zA-Z0-9]*"), num);
         if(num < 0)
             break;
 
@@ -244,8 +244,8 @@ int LVM::parse_metadata()
         suuid.replace("-", "");
         num += 38;
         num = pv_metadata.indexOf("flags", num);
-        num = pv_metadata.indexOf(QRegExp("[0-9]+"), num);
-        num2 = pv_metadata.indexOf(QRegExp("\\n"), num);
+        num = pv_metadata.indexOf(QRegularExpression("[0-9]+"), num);
+        num2 = pv_metadata.indexOf(QRegularExpression("\\n"), num);
         nsegs = pv_metadata.mid(num, num2-num).toInt(&ok);
         if(!ok)
         {
@@ -261,28 +261,28 @@ int LVM::parse_metadata()
         LOG("Logical Volume found. Name %s, segments %d\n", lvol->volname.toUtf8().data(), nsegs);
         for(int i = 0; i < nsegs; i++)
         {
-            num = pv_metadata.indexOf(QRegExp("segment[0-9]+"), num);
+            num = pv_metadata.indexOf(QRegularExpression("segment[0-9]+"), num);
             num += 8;
             numbase = num;
             num = pv_metadata.indexOf("start_extent", num);
-            num = pv_metadata.indexOf(QRegExp("[0-9]+"), num);
-            num2 = pv_metadata.indexOf(QRegExp("\\n"), num);
+            num = pv_metadata.indexOf(QRegularExpression("[0-9]+"), num);
+            num2 = pv_metadata.indexOf(QRegularExpression("\\n"), num);
             start_extent = pv_metadata.mid(num, num2-num).toInt(&ok);
 
             num = pv_metadata.indexOf("extent_count", numbase);
-            num = pv_metadata.indexOf(QRegExp("[0-9]+"), num);
-            num2 = pv_metadata.indexOf(QRegExp("\\n"), num);
+            num = pv_metadata.indexOf(QRegularExpression("[0-9]+"), num);
+            num2 = pv_metadata.indexOf(QRegularExpression("\\n"), num);
             extent_count = pv_metadata.mid(num, num2-num).toInt(&ok);
 
             // Multiple stripes NOT Implemented: we only support linear for now.
             lv_segment *seg = new lv_segment(start_extent, extent_count);
             seg->stripe = new struct stripe;
             seg->stripe->stripe_pv = 0;
-            num = pv_metadata.indexOf(QRegExp("pv[0-9]+"), num);
+            num = pv_metadata.indexOf(QRegularExpression("pv[0-9]+"), num);
             num += 4;
 
-            num = pv_metadata.indexOf(QRegExp("[0-9]+"), num);
-            num2 = pv_metadata.indexOf(QRegExp("\\n"), num);
+            num = pv_metadata.indexOf(QRegularExpression("[0-9]+"), num);
+            num2 = pv_metadata.indexOf(QRegularExpression("\\n"), num);
             seg->stripe->stripe_start_extent = pv_metadata.mid(num, num2-num).toInt(&ok);
             num = num2;
             seg->pvolumes = NULL;   // we do the segment -> pv mapping later because this pv might not be found yet

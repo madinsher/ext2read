@@ -26,6 +26,8 @@
 
 #include <stdint.h>
 
+#include "platform.h"
+
 #define EXT2_DEFAULT_PREALLOC_BLOCKS	8
 
 /* Special Inode Numbers  */
@@ -71,6 +73,7 @@
 
 /* Superblock Flags */
 #define EXT2_FEATURE_INCOMPAT_COMPRESSION 0x0001    /* disk/file compression is used */
+#define EXT4_FEATURE_INCOMPAT_64BIT       0x0080    /* group descriptors are s_desc_size bytes, block numbers are 64bit */
 /*Inode flags  */
 #define	EXT2_SECRM_FL			0x00000001 /* Secure deletion */
 #define	EXT2_UNRM_FL				0x00000002 /* Undelete */
@@ -150,6 +153,8 @@ typedef struct tagBLOCK_GROUP
 
 */
 
+#pragma pack(push, 1)
+
 /* The Super Block comes first in the block group */
 typedef struct tagEXT2_SUPER_BLOCK
 {
@@ -193,8 +198,26 @@ typedef struct tagEXT2_SUPER_BLOCK
     uint8_t	s_prealloc_blocks;	/* Nr of blocks to try to preallocate*/
     uint8_t	s_prealloc_dir_blocks;	/* Nr to preallocate for dirs */
     uint16_t	s_padding1;
-    uint32_t	s_reserved[204];		/* unused */
-} __attribute__ ((__packed__)) EXT2_SUPER_BLOCK;
+    uint8_t	s_journal_uuid[16];	/* 0xD0: uuid of journal superblock */
+    uint32_t	s_journal_inum;		/* inode number of journal file */
+    uint32_t	s_journal_dev;		/* device number of journal file */
+    uint32_t	s_last_orphan;		/* start of list of inodes to delete */
+    uint32_t	s_hash_seed[4];		/* HTREE hash seed */
+    uint8_t	s_def_hash_version;	/* Default hash version to use */
+    uint8_t	s_jnl_backup_type;
+    uint16_t	s_desc_size;		/* 0xFE: size of group descriptors, if the 64bit feature is set */
+    uint32_t	s_default_mount_opts;
+    uint32_t	s_first_meta_bg;	/* First metablock block group */
+    uint32_t	s_mkfs_time;		/* When the filesystem was created */
+    uint32_t	s_jnl_blocks[17];	/* Backup of the journal inode */
+    uint32_t	s_blocks_count_hi;	/* 0x150: blocks count, high 32 bits (64bit feature) */
+    uint32_t	s_r_blocks_count_hi;
+    uint32_t	s_free_blocks_count_hi;
+    uint32_t	s_reserved[169];		/* unused */
+} PACKED EXT2_SUPER_BLOCK;
+
+/* Offset of bg_inode_table_hi in a 64bit (ext4) group descriptor */
+#define EXT4_BG_INODE_TABLE_HI_OFFSET	40
 
 /* The Group Descriptors follow the Super Block. */
 typedef struct tagEXT2_GROUP_DESC
@@ -207,7 +230,7 @@ typedef struct tagEXT2_GROUP_DESC
     uint16_t	bg_used_dirs_count;	/* number of inodes allocated to directories */
     uint16_t	bg_pad;			/* padding */
     uint32_t	bg_reserved[3];		/* reserved */
-}__attribute__ ((__packed__)) EXT2_GROUP_DESC;
+} PACKED EXT2_GROUP_DESC;
 
 /* Structure of an inode on the disk  */
 typedef struct tagEXT2_INODE
@@ -264,7 +287,7 @@ typedef struct tagEXT2_INODE
             uint32_t	m_i_reserved2[2];
         } masix2;
     } osd2;					/* OS dependent 2 */
-} __attribute__ ((__packed__)) EXT2_INODE;
+} PACKED EXT2_INODE;
 
 /* EXT2 directory structure */
 typedef struct tagEXT2_DIR_ENTRY {
@@ -273,7 +296,7 @@ typedef struct tagEXT2_DIR_ENTRY {
     uint8_t 	name_len;		/* Name length */
     uint8_t	filetype;		/* File type */
     char	name[EXT2_NAME_LEN];	/* File name */
-} __attribute__ ((__packed__)) EXT2_DIR_ENTRY;
+} PACKED EXT2_DIR_ENTRY;
 
 
 /*
@@ -285,7 +308,7 @@ typedef struct ext4_extent {
     uint16_t ee_len; /* number of blocks covered by extent */
     uint16_t ee_start_hi; /* high 16 bits of physical block */
     uint32_t ee_start_lo; /* low 32 bits of physical block */
-} __attribute__ ((__packed__)) EXT4_EXTENT;
+} PACKED EXT4_EXTENT;
 
 /*
  * This is index on-disk structure.
@@ -297,7 +320,7 @@ typedef struct ext4_extent_idx {
                                  * level. leaf or next index could be there */
     uint16_t  ei_leaf_hi;     /* high 16 bits of physical block */
     uint16_t   ei_unused;
-}__attribute__ ((__packed__)) EXT4_EXTENT_IDX;
+} PACKED EXT4_EXTENT_IDX;
 
 /*
  * Each block (leaves and indexes), even inode-stored has header.
@@ -308,7 +331,9 @@ typedef struct ext4_extent_header {
     uint16_t  eh_max;         /* capacity of store in entries */
     uint16_t  eh_depth;       /* has tree real underlying blocks? */
     uint32_t  eh_generation;  /* generation of the tree */
-}__attribute__ ((__packed__)) EXT4_EXTENT_HEADER;
+} PACKED EXT4_EXTENT_HEADER;
+
+#pragma pack(pop)
 
 
 #define EXT4_EXT_MAGIC          0xf30a
